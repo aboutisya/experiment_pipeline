@@ -7,14 +7,19 @@ from yaml.loader import SafeLoader
 from os import listdir
 
 
-def _load_yaml_preset(preset="default"):
-    preset_path = config.PATH_METRIC_CONFIGS + preset
-    metrics_to_load = listdir(preset_path)
-    metrics = []
-    for metric in metrics_to_load:
-        with open(preset_path + "/" + metric) as f:
-            metrics.append(yaml.load(f, Loader=SafeLoader))
-    return metrics
+def _load_yaml_preset(preset="default", mc=True):
+    if mc:
+        preset_path = config.MONTE_CARLO_CONFIGS + preset
+        with open(preset_path) as f:
+            return yaml.load(f, Loader=SafeLoader)
+    else:
+        preset_path = config.PATH_METRIC_CONFIGS + preset
+        metrics_to_load = listdir(preset_path)
+        metrics = []
+        for metric in metrics_to_load:
+            with open(preset_path + "/" + metric) as f:
+                metrics.append(yaml.load(f, Loader=SafeLoader))
+        return metrics
 
 
 class Metric:
@@ -53,7 +58,13 @@ class CalculateMetric:
     def __init__(self, metric: Metric):
         self.metric = metric
 
-    def __call__(self, df):
+    def __call__(self, df, mc_lift=None):
+        if mc_lift:
+
+            df[config.VARIANT_COL] = np.random.choice(2, len(df))
+            if mc_lift > 0:
+                df[self.metric.numerator_aggregation_field] = df[self.metric.numerator_aggregation_field] * mc_lift
+
         return df.groupby([config.VARIANT_COL, self.metric.level]).apply(
             lambda df: pd.Series({
                 "num": self.metric.numerator_aggregation_function(
@@ -82,8 +93,8 @@ class CalculateMetric:
                 return df.loc[df[field] <= value][value_to_filter]
         return df[value_to_filter]
 
-    # @staticmethod
-    # def bucketization(values, bucket=200):
-    #     bucket = np.random.choice(values, len(values))
-    #
-    #     return pd.DataFrame({'data': values, 'bucket': bucket}).groupby('bucket')['data'].mean().reset_index()['data']
+    @staticmethod
+    def bucketization(df, field, bucket=200):
+        df['bucket'] = np.random.choice(bucket, len(df))
+
+        return df.groupby('bucket')[field].mean().reset_index()[field]

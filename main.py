@@ -21,7 +21,8 @@ logger.info("Data loaded")
 
 experiment_report = build_experiment_report(
     df=df,
-    metric_config=_load_yaml_preset(preset='todo')
+    metric_config=_load_yaml_preset(preset='todo', mc=False),
+    monte_carlo_config=_load_yaml_preset(preset='todo/mc.yaml', mc=True)
 )
 experiment_report.to_csv(f"experiment_report.csv")
 
