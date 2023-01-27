@@ -1,3 +1,4 @@
 .idea/
 __pycache__/
 utils.py
+data/parquet/df.parquet

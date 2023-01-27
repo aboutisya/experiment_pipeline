@@ -7,14 +7,19 @@ from yaml.loader import SafeLoader
 from os import listdir
 
 
-def _load_yaml_preset(preset="default"):
-    preset_path = config.PATH_METRIC_CONFIGS + preset
-    metrics_to_load = listdir(preset_path)
-    metrics = []
-    for metric in metrics_to_load:
-        with open(preset_path + "/" + metric) as f:
-            metrics.append(yaml.load(f, Loader=SafeLoader))
-    return metrics
+def _load_yaml_preset(preset="default", mc=True):
+    if mc:
+        preset_path = config.MONTE_CARLO_CONFIGS + preset
+        with open(preset_path) as f:
+            return yaml.load(f, Loader=SafeLoader)
+    else:
+        preset_path = config.PATH_METRIC_CONFIGS + preset
+        metrics_to_load = listdir(preset_path)
+        metrics = []
+        for metric in metrics_to_load:
+            with open(preset_path + "/" + metric) as f:
+                metrics.append(yaml.load(f, Loader=SafeLoader))
+        return metrics
 
 
 class Metric:
@@ -31,6 +36,8 @@ class Metric:
         denominator_aggregation_function = self.denominator.get("aggregation_function", config.DEFAULT_VALUE)
         self.numerator_aggregation_function = self._map_aggregation_function(numerator_aggregation_function)
         self.denominator_aggregation_function = self._map_aggregation_function(denominator_aggregation_function)
+        self.numerator_conditions = metric_config.get("numerator_conditions", config.DEFAULT_VALUE)
+        self.denominator_conditions = metric_config.get("denominator_conditions", config.DEFAULT_VALUE)
 
     @staticmethod
     def _map_aggregation_function(aggregation_function):
@@ -51,13 +58,43 @@ class CalculateMetric:
     def __init__(self, metric: Metric):
         self.metric = metric
 
-    def __call__(self, df):
+    def __call__(self, df, mc_lift=None):
+        if mc_lift:
+
+            df[config.VARIANT_COL] = np.random.choice(2, len(df))
+            if mc_lift > 0:
+                df[self.metric.numerator_aggregation_field] = df[self.metric.numerator_aggregation_field] * mc_lift
+
         return df.groupby([config.VARIANT_COL, self.metric.level]).apply(
             lambda df: pd.Series({
-                "num": self.metric.numerator_aggregation_function(df[self.metric.numerator_aggregation_field]),
-                "den": self.metric.denominator_aggregation_function(df[self.metric.denominator_aggregation_field]),
+                "num": self.metric.numerator_aggregation_function(
+                     self._filter_values(df, self.metric.numerator_conditions, self.metric.numerator_aggregation_field)),
+                "den": self.metric.denominator_aggregation_function(
+                    self._filter_values(df, self.metric.denominator_conditions,
+                                        self.metric.denominator_aggregation_field)),
                 "n": pd.Series.nunique(df[self.metric.level])
             })
         ).reset_index()
 
+    @staticmethod
+    def _filter_values(df, conditions, value_to_filter):
+        if type(conditions) is dict:
+            field = conditions.get("condition_field", config.DEFAULT_VALUE)
+            sign = conditions.get("comparison_sign", config.DEFAULT_VALUE)
+            value = conditions.get("comparison_value", config.DEFAULT_VALUE)
 
+            if sign == 'not_equal':
+                return df.loc[df[field] != value][value_to_filter]
+            elif sign == 'equal':
+                return df.loc[df[field] == value][value_to_filter]
+            elif sign == 'greater':
+                return df.loc[df[field] >= value][value_to_filter]
+            else:
+                return df.loc[df[field] <= value][value_to_filter]
+        return df[value_to_filter]
+
+    @staticmethod
+    def bucketization(df, field, bucket=200):
+        df['bucket'] = np.random.choice(bucket, len(df))
+
+        return df.groupby('bucket')[field].mean().reset_index()[field]
