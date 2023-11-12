@@ -78,13 +78,25 @@ class TTestFromStats(Estimator):
 
 def calculate_statistics(df, type):
     mappings = {
-        "ratio": BaseStatsRatio()
-        # TODO расчет статистик не для ratio
+        "t_test": BaseStatsRatio(),
+        "mann_whitney": BaseStatsRatio(),
+        "prop_test": BaseStatsRatio()
     }
 
     calculate_method = mappings[type]
 
     return calculate_method(df)
+
+def test_method(df, type):
+    mappings = {
+        "t_test": TTestFromStats(),
+        "mann_whitney": TTestFromStats(),
+        "prop_test": TTestFromStats()
+    }
+
+    test_method = mappings[type]
+
+    return test_method
 
 
 def calculate_linearization(df):
