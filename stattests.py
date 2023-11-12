@@ -34,6 +34,7 @@ class Estimator(abc.ABC):
     def __call__(self, Statistics) -> EstimatorCriteriaValues:
         pass
 
+####################################################################
 
 class BaseStatsRatio(MetricStats):
     def __call__(self, df) -> Statistics:
@@ -48,14 +49,34 @@ class BaseStatsRatio(MetricStats):
         return Statistics(mean_0, mean_1, var_0, var_1, n_0, n_1)
 
 
-class Linearization():
+class BaseStatsMW(MetricStats):
+    def __call__(self, df) -> Statistics:
+        _unique_variants = df[cfg.VARIANT_COL].unique()
+        n_0 = sum(df['n'][df[cfg.VARIANT_COL] == _unique_variants[0]])
+        n_1 = sum(df['n'][df[cfg.VARIANT_COL] == _unique_variants[1]])
+        mean_0 = sum(df['num'][df[cfg.VARIANT_COL] == _unique_variants[0]]) / sum(df['den'][df[cfg.VARIANT_COL] == _unique_variants[0]])
+        mean_1 = sum(df['num'][df[cfg.VARIANT_COL] == _unique_variants[1]]) / sum(df['den'][df[cfg.VARIANT_COL] == _unique_variants[1]])
+        var_0 = df['l_ratio'][df[cfg.VARIANT_COL] == _unique_variants[0]].var()
+        var_1 = df['l_ratio'][df[cfg.VARIANT_COL] == _unique_variants[1]].var()
 
-    def __call__(self, num_0, den_0, num_1, den_1):
-        k = np.sum(num_0) / np.sum(den_0)
-        l_0 = num_0 - k * den_0
-        l_1 = num_1 - k * den_1
-        return l_0, l_1
+        return Statistics(mean_0, mean_1, var_0, var_1, n_0, n_1)
 
+
+
+class BaseStatsProp(MetricStats):
+    def __call__(self, df) -> Statistics:
+        _unique_variants = df[cfg.VARIANT_COL].unique()
+        n_0 = sum(df['n'][df[cfg.VARIANT_COL] == _unique_variants[0]])
+        n_1 = sum(df['n'][df[cfg.VARIANT_COL] == _unique_variants[1]])
+        mean_0 = sum(df['num'][df[cfg.VARIANT_COL] == _unique_variants[0]]) / sum(df['den'][df[cfg.VARIANT_COL] == _unique_variants[0]])
+        mean_1 = sum(df['num'][df[cfg.VARIANT_COL] == _unique_variants[1]]) / sum(df['den'][df[cfg.VARIANT_COL] == _unique_variants[1]])
+        var_0 = df['l_ratio'][df[cfg.VARIANT_COL] == _unique_variants[0]].var()
+        var_1 = df['l_ratio'][df[cfg.VARIANT_COL] == _unique_variants[1]].var()
+
+        return Statistics(mean_0, mean_1, var_0, var_1, n_0, n_1)
+
+####################################################################
+####################################################################
 
 class TTestFromStats(Estimator):
 
@@ -76,11 +97,49 @@ class TTestFromStats(Estimator):
         return EstimatorCriteriaValues(pvalue, statistic)
 
 
+class MWTestFromStats(Estimator):
+
+    def __call__(self, stat: Statistics) -> EstimatorCriteriaValues:
+        try:
+            statistic, pvalue = ttest_ind_from_stats(
+                mean1=stat.mean_0,
+                std1=np.sqrt(stat.var_0),
+                nobs1=stat.n_0,
+                mean2=stat.mean_1,
+                std2=np.sqrt(stat.var_1),
+                nobs2=stat.n_1
+            )
+        except Exception as e:
+            cfg.logger.error(e)
+            statistic, pvalue = None, None
+
+        return EstimatorCriteriaValues(pvalue, statistic)
+
+class PropTestFromStats(Estimator):
+
+    def __call__(self, stat: Statistics) -> EstimatorCriteriaValues:
+        try:
+            statistic, pvalue = ttest_ind_from_stats(
+                mean1=stat.mean_0,
+                std1=np.sqrt(stat.var_0),
+                nobs1=stat.n_0,
+                mean2=stat.mean_1,
+                std2=np.sqrt(stat.var_1),
+                nobs2=stat.n_1
+            )
+        except Exception as e:
+            cfg.logger.error(e)
+            statistic, pvalue = None, None
+
+        return EstimatorCriteriaValues(pvalue, statistic)
+
+####################################################################
+
 def calculate_statistics(df, type):
     mappings = {
         "t_test": BaseStatsRatio(),
-        "mann_whitney": BaseStatsRatio(),
-        "prop_test": BaseStatsRatio()
+        "mann_whitney": BaseStatsMW(),
+        "prop_test": BaseStatsProp()
     }
 
     calculate_method = mappings[type]
@@ -90,14 +149,23 @@ def calculate_statistics(df, type):
 def test_method(df, type):
     mappings = {
         "t_test": TTestFromStats(),
-        "mann_whitney": TTestFromStats(),
-        "prop_test": TTestFromStats()
+        "mann_whitney": MWTestFromStats(),
+        "prop_test": PropTestFromStats()
     }
 
     test_method = mappings[type]
 
     return test_method
 
+####################################################################
+
+class Linearization():
+
+    def __call__(self, num_0, den_0, num_1, den_1):
+        k = np.sum(num_0) / np.sum(den_0)
+        l_0 = num_0 - k * den_0
+        l_1 = num_1 - k * den_1
+        return l_0, l_1
 
 def calculate_linearization(df):
     _variants = df[cfg.VARIANT_COL].unique()
