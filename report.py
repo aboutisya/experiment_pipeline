@@ -15,11 +15,12 @@ class Report:
 
 class BuildMetricReport:
     def __call__(self, calculated_metric, metric_items) -> Report:
-        ttest = TTestFromStats()
+        
         cfg.logger.info(f"{metric_items.name}")
 
         df_ = calculate_linearization(calculated_metric)
         stats = calculate_statistics(df_, metric_items.type)
+        ttest = TTestFromStats()
         criteria_res = ttest(stats)
 
         report_items = pd.DataFrame({
