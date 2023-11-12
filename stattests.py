@@ -56,6 +56,17 @@ def metrics_filtering(df, num_filter, denum_filter):
     
     return df
 
+def metrics_bucketing(df):
+    b_n = df.shape[0] // 50
+    df_b = pd.DataFrame({
+        'values': df,
+        'bucket': [i for i in range(b_n)] * df.shape[0]*2/b_n
+    })
+    df_b = df_b.groupby(by='backet', as_index=False)['values'].agg(mu=np.mean)
+
+    return df_b
+
+
 ####################################################################
 
 class BaseStatsRatio(MetricStats):
