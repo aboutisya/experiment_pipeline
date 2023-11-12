@@ -2,6 +2,7 @@
 # Курс по A/B-тестированиям expf.ru/ab_course
 # A/B-платформа по подписке expf.ru/sigma
 
+
 import pandas as pd
 
 import config as cfg
