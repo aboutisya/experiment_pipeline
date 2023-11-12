@@ -5,7 +5,7 @@ import utils
 import config as cfg
 from itertools import product
 from metric_builder import Metric, CalculateMetric
-from stattests import TTestFromStats, calculate_statistics, calculate_linearization, test_method
+from stattests import TTestFromStats, calculate_statistics, test_method, calculate_linearization, metrics_filtering
 
 
 class Report:
@@ -18,6 +18,8 @@ class BuildMetricReport:
         cfg.logger.info(f"{metric_items.name}")
 
         df_ = calculate_linearization(calculated_metric)
+        df_ = metrics_filtering(df_, metric_items.numerator_filter , metric_items.denominator_filter )
+        
         stats = calculate_statistics(df_, metric_items.estimator)
         ttest = test_method(metric_items.estimator)
         criteria_res = ttest(stats)
