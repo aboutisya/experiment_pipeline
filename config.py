@@ -21,5 +21,6 @@ DEFAULT_UNIT_LEVEL = "client_id"
 DEFAULT_VALUE = "Unknown"
 VARIANT_COL = "experiment_variant"
 USER_ID_COL = "client_id"
+DEFAULT_FILTER_NUM = None
 
 
