@@ -2,7 +2,8 @@ import pandas as pd
 import numpy as np
 import abc
 
-from scipy.stats import ttest_ind_from_stats, ttest_ind
+from scipy.stats import ttest_ind_from_stats, ttest_ind, mannwhitneyu
+from statsmodels.stats.proportion import proportions_ztest
 
 import config as cfg
 
@@ -14,13 +15,15 @@ class EstimatorCriteriaValues:
 
 
 class Statistics:
-    def __init__(self, mean_0: float, mean_1: float, var_0: float, var_1: float, n_0: int, n_1: int):
+    def __init__(self, mean_0: float, mean_1: float, var_0: float, var_1: float, n_0: int, n_1: int, group_1, group_2):
         self.mean_0 = mean_0
         self.mean_1 = mean_1
         self.var_0 = var_0
         self.var_1 = var_1
         self.n_0 = n_0
         self.n_1 = n_1
+        self.group_1 = group_1
+        self.group_2 = group_2
 
 
 class MetricStats(abc.ABC):
@@ -46,7 +49,7 @@ class BaseStatsRatio(MetricStats):
         var_0 = df['l_ratio'][df[cfg.VARIANT_COL] == _unique_variants[0]].var()
         var_1 = df['l_ratio'][df[cfg.VARIANT_COL] == _unique_variants[1]].var()
 
-        return Statistics(mean_0, mean_1, var_0, var_1, n_0, n_1)
+        return Statistics(mean_0, mean_1, var_0, var_1, n_0, n_1, None, None)
 
 
 class BaseStatsMW(MetricStats):
@@ -58,10 +61,10 @@ class BaseStatsMW(MetricStats):
         mean_1 = sum(df['num'][df[cfg.VARIANT_COL] == _unique_variants[1]]) / sum(df['den'][df[cfg.VARIANT_COL] == _unique_variants[1]])
         var_0 = df['l_ratio'][df[cfg.VARIANT_COL] == _unique_variants[0]].var()
         var_1 = df['l_ratio'][df[cfg.VARIANT_COL] == _unique_variants[1]].var()
+        group_1 = df['num'][df[cfg.VARIANT_COL] == _unique_variants[0]]
+        group_2 = df['num'][df[cfg.VARIANT_COL] == _unique_variants[1]]
 
-        return Statistics(mean_0, mean_1, var_0, var_1, n_0, n_1)
-
-
+        return Statistics(mean_0, mean_1, var_0, var_1, n_0, n_1, group_1, group_2)
 
 class BaseStatsProp(MetricStats):
     def __call__(self, df) -> Statistics:
@@ -73,7 +76,7 @@ class BaseStatsProp(MetricStats):
         var_0 = df['l_ratio'][df[cfg.VARIANT_COL] == _unique_variants[0]].var()
         var_1 = df['l_ratio'][df[cfg.VARIANT_COL] == _unique_variants[1]].var()
 
-        return Statistics(mean_0, mean_1, var_0, var_1, n_0, n_1)
+        return Statistics(mean_0, mean_1, var_0, var_1, n_0, n_1, None, None)
 
 ####################################################################
 ####################################################################
@@ -101,13 +104,11 @@ class MWTestFromStats(Estimator):
 
     def __call__(self, stat: Statistics) -> EstimatorCriteriaValues:
         try:
-            statistic, pvalue = ttest_ind_from_stats(
-                mean1=stat.mean_0,
-                std1=np.sqrt(stat.var_0),
-                nobs1=stat.n_0,
-                mean2=stat.mean_1,
-                std2=np.sqrt(stat.var_1),
-                nobs2=stat.n_1
+            statistic, pvalue = mannwhitneyu(
+                group1=group_1,
+                group2=group_2,
+                alternative="less",
+                method="exact"
             )
         except Exception as e:
             cfg.logger.error(e)
@@ -119,13 +120,12 @@ class PropTestFromStats(Estimator):
 
     def __call__(self, stat: Statistics) -> EstimatorCriteriaValues:
         try:
-            statistic, pvalue = ttest_ind_from_stats(
-                mean1=stat.mean_0,
-                std1=np.sqrt(stat.var_0),
-                nobs1=stat.n_0,
-                mean2=stat.mean_1,
-                std2=np.sqrt(stat.var_1),
-                nobs2=stat.n_1
+            statistic, pvalue = proportions_ztest(
+                count= stat.mean_1 * stat.n_1,
+                nobs= stat.mean_1 * stat.n_1 + stat.mean_0 * stat.n_0,
+                value=None,
+                alternative='two-sided',
+                prop_var=False
             )
         except Exception as e:
             cfg.logger.error(e)
