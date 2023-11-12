@@ -37,6 +37,25 @@ class Estimator(abc.ABC):
     def __call__(self, Statistics) -> EstimatorCriteriaValues:
         pass
 
+def metrics_filtering(df_, metric_items.numerator_filter , metric_items.denominator_filter )
+
+
+class Filtering():
+
+    def __call__(self, filter):
+        if num_filter != None:
+            self['flt'] = self[filter] > 0
+            
+        return self[ self['flt'] ]
+
+def metrics_filtering(df, num_filter, denum_filter):
+    filtering = Filtering()
+
+    df = filtering(df, num_filter)
+    df = filtering(df, num_filter)
+    
+    return df
+
 ####################################################################
 
 class BaseStatsRatio(MetricStats):
